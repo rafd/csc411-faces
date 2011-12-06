@@ -1,0 +1,43 @@
+function[targets_test] = classifyFacesMLR(data_train,targets_train,data_test,data_unlabeled)
+% Builds a multinomial logistic regression classifier to predict the labels
+% for data_test. Note that this is purely supervised and does not use
+% unlabeled data in any way.
+[num_train,num_rows,num_cols] = size(data_train);
+num_test = size(data_test,1);
+
+% Reshape the data to the standard num_data x num_dimensions format
+X = reshape(data_train,num_train,num_rows*num_cols);
+
+% Add bias
+X = [ones(num_train,1), X];
+
+% Convert targets from 1 of K to vector representation
+[junk,y] = max(targets_train,[],2);
+nClasses = size(targets_train,2);
+nVars = num_rows*num_cols;
+
+% Create a pointer to the classifier function
+funObj = @(W)SoftmaxLoss2(W,X,y,nClasses);
+fprintf('Training multinomial logistic regression model...\n');
+options = [];
+
+% This version of softmax regression only requires (nVars+1)x(nClasses-1)
+% parameters as opposed to (nVars+1)x(nClasses)
+wInit = zeros((nVars+1)*(nClasses-1),1);
+wSoftmax = minFunc(funObj,wInit,options);
+
+% Reshape parameters from a vector to a matrix, the last column should
+% contain zeros in this version (don't worry about why, it's basically
+% removing redundancy in the original softmax formulation)
+wSoftmax = reshape(wSoftmax,[nVars+1 nClasses-1]);
+wSoftmax = [wSoftmax zeros(nVars+1,1)];
+
+% Make predictions on the test set
+X_test = reshape(data_test,num_test,num_rows*num_cols);
+X_test = [ones(num_test,1), X_test];
+
+[junk yhat_test] = max(X_test*wSoftmax,[],2);
+targets_test = num2OneOfK(yhat_test);
+
+% Save the results to a mat file
+save test.mat targets_test
