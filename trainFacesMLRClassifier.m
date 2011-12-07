@@ -23,4 +23,4 @@ options = [];
 % This version of softmax regression only requires (nVars+1)x(nClasses-1)
 % parameters as opposed to (nVars+1)x(nClasses)
 wInit = zeros((nVars+1)*(nClasses-1),1);
-wSoftmax = minFunc(funObj,wInit,options);
+wSoftmax = minFunc(funObj,wInit,options); % These parameters are wrong

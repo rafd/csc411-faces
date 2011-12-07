@@ -1,6 +1,8 @@
 % This script will train a softmax regression classifier on the Toronto
 % Faces Dataset.
 
+model = 'SVM';
+
 % Load the training set
 load TFD_hw4_train;
 % We don't use any unlabeled data here
@@ -22,12 +24,25 @@ data_train = data_train(ind(1:num_train),:,:);
 targets_train = targets_train(ind(1:num_train),:);
 
 % Learn the parameters on the training set
-wSoftmax = trainFacesMLRClassifier(data_train,targets_train,data_unlabeled);
+switch model
+	case '2DLDA'
+		train2DLDA(data_train, targets_train);
+	case 'MLR'
+		wSoftmax = trainFacesMLRClassifier(data_train,targets_train,data_unlabeled);
+	case 'SVM'
+		wSoftmax = trainFacesSVMClassifier(data_train,targets_train,data_unlabeled);
+end
+
 % Save the learned model to a mat file
 save trainedModel wSoftmax;
 % Evaluate the learned parameters on the validation set and report the
 % validation set accuracy
-[targets_test] = classifyFacesMLR(wSoftmax,data_valid,size(targets_valid,2));
+switch model
+	case MLR
+		[targets_test] = classifyFacesMLR(wSoftmax,data_valid,size(targets_valid,2));
+	case SVM
+		[targets_test] = classifyFacesMLR(wSoftmax,data_valid,size(targets_valid,2));
+end
 targets_valid = oneOfK2Num(targets_valid);
 validAccuracy = sum(sum(targets_test == targets_valid))/size(targets_valid,1)
 
