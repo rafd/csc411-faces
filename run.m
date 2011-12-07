@@ -38,8 +38,9 @@ faces_test = double(data_train(train_set_size+1:size(data_train,1),:,:));
 labels_train = targets_train(1:train_set_size,:);
 labels_test = targets_train(train_set_size+1:size(targets_train,1),:);
 
-
-% Sizes
+%
+% Define Some Useful Sizes
+%
 
 nClasses = size(labels_train,2); % 7
 [trainInstances, imgRows, imgCols] = size(faces_train);
@@ -92,21 +93,13 @@ end
 
 [vec, val] = tdfda(trainSample, nClasses, labels_train);
 
-% TODO: combine the two loops below
-
 % Compute modified faces
 vec = vec(:,1:num_e_vecs_to_use);
-features_train = zeros(trainInstances, imgRows, num_e_vecs_to_use);
-for i=1:trainInstances
-	features_train(i,:,:) = reshape(faces_train(i,:,:), imgRows, imgCols)*vec;
-end
 
-% Resize 
-features_train_reshaped = zeros(trainInstances, nVars);
+features_train = zeros(trainInstances, nVars);
 for i=1:trainInstances
-	features_train_reshaped(i,:) = reshape(features_train(i,:,:), nVars, 1);
+	features_train(i,:,:) = reshape((reshape(faces_train(i,:,:), imgRows, imgCols)*vec),nVars,1);
 end
-features_train = features_train_reshaped;
 
 
 %
@@ -134,19 +127,10 @@ trainErr_linear = sum(labels_train~=yhat)/length(labels_train);
 % Test
 
 [y,junk] = find(labels_test');
-
-% TODO: combine both loops
-
-features_test = zeros(testInstances, size(faces_test, 2), num_e_vecs_to_use);
+features_test = zeros(testInstances, nVars);
 for i=1:testInstances
-	features_test(i,:,:) = reshape(faces_test(i,:,:), imgRows, imgCols)*vec;
+	features_test(i,:,:) = reshape((reshape(faces_test(i,:,:), imgRows, imgCols)*vec), nVars, 1);
 end
-
-features_train_reshaped = zeros(testInstances, nVars);
-for i=1:testInstances
-	features_train_reshaped(i,:) = reshape(features_test(i,:,:), nVars, 1);
-end
-features_test = features_train_reshaped;
 
 [junk yhat_test] = max(features_test*wLinear,[],2);
 testErr = sum(y~=yhat_test)/length(y);
