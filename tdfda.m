@@ -29,7 +29,8 @@ for i=1:nSample
 	end
 end
 %-------------------------------------------------- 
- 
+meanClass{class} = meanClass{class} / classTotal{class};
+
 Gb = zeros(width, width); 
 for i=1:nClass 
     Gb = Gb + classTotal{i}*(meanClass{i}-meanSample)'*(meanClass{i}-meanSample); 
