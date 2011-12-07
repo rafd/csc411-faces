@@ -4,7 +4,7 @@ clear
 % flags
 
 num_e_vecs_to_use = 48;
-max_val_of_train_set_on_which_to_train = 2000;
+train_set_size = 1000;
 flag_load_normalized_data = 1;
 flag_normalize_images = 0;
 options.Display = 'none';
@@ -12,7 +12,11 @@ options.Display = 'none';
 
 t = cputime;
 
+
+%
 % Load TFD Dataset
+%
+
 % provides:
 %   data_train: 2925x48x48 grayscale images
 %   targets_train: 2925x7 labels
@@ -24,121 +28,127 @@ else
     load TFD_hw4_train
 end
 
-nClasses = size(targets_train,2); % 7
-facedatabase = double(data_train(1:max_val_of_train_set_on_which_to_train,:,:));
-targets = targets_train(1:max_val_of_train_set_on_which_to_train,:);
 
-% Sort
+%
+% Subset into Training and Test Sets
+%
 
-[y,x] = find(targets');
+faces_train = double(data_train(1:train_set_size,:,:));
+faces_test = double(data_train(train_set_size+1:size(data_train,1),:,:));
+labels_train = targets_train(1:train_set_size,:);
+labels_test = targets_train(train_set_size+1:size(targets_train,1),:);
 
-sort_index = sortrows([x,y],2);
 
-sorted_labels = sort_index(:,2);
+% Sizes
 
-sorted_faces = zeros(size(facedatabase));
+nClasses = size(labels_train,2); % 7
+[trainInstances, imgRows, imgCols] = size(faces_train);
+testInstances = size(faces_test,1);
+nVars = imgRows * num_e_vecs_to_use;
 
-for i=1:size(facedatabase,1)
+%
+% Sort Training Data
+%
 
-    sorted_faces(i,:,:) = facedatabase(sort_index(i,1),:,:);
+[y,x] = find(labels_train');
+sorted_indices = sortrows([x,y],2);
+sorted_labels = sorted_indices(:,2);
 
+sorted_faces = zeros(size(faces_train));
+for i=1:trainInstances
+    sorted_faces(i,:,:) = faces_train(sorted_indices(i,1),:,:);
 end
 
-facedatabase = sorted_faces;
-targets = sorted_labels;
+faces_train = sorted_faces;
+labels_train = sorted_labels;
 
-%targets = y;
 
-% 1: Normalize Histogram of Images
+%
+% Normalize Histogram of Images
+%
 
 if flag_normalize_images && ~flag_load_normalized_data
     fprintf('Normalizing Images...%d\n',cputime-t)
     
     % get hist of first image
-    ref_hist = imhist(reshape(data_train(1,:,:),image_rows,image_cols));
+    ref_hist = imhist(reshape(data_train(1,:,:),imgRows,imgCols));
 
     % rewrite images histogram equalized to reference histogram
     for i=1:size(data_train,1)
-        data_train(i,:,:) = histeq(reshape(data_train(i,:,:),image_rows,image_cols),ref_hist); 
+        data_train(i,:,:) = histeq(reshape(data_train(i,:,:),imgRows,imgCols),ref_hist); 
     end
-else
-    % do nothing
 end
 
-
-% Ref Variables
-
-[nInstances, image_rows, image_cols] = size(facedatabase); 
-
-
-% 2: 2D-LDA
+%
+% Compute Features with 2D-LDA
+%
 
 fprintf('Computing Features...\n');
 
-% Massage the data into the form desired by the 2D LDA function
-nclass = 7; 
-height = 48; 
-width = 48; 
- 
-for i=1:size(facedatabase, 1)
-    trainSample{i}=reshape(facedatabase(i,:,:), height, width); 
-end 
- 
-for i=1:size(facedatabase, 1)
-    testSample{i}=reshape(facedatabase(i,:,:), height, width); 
+% Resize into the form desired by the 2D LDA function
+for i=1:trainInstances
+    trainSample{i}=reshape(faces_train(i,:,:), imgRows, imgCols); 
 end
 
-[vec, val] = tdfda(trainSample, nclass, targets);
+[vec, val] = tdfda(trainSample, nClasses, labels_train);
 
-% 3: Compute modified faces
+% TODO: combine the two loops below
+
+% Compute modified faces
 vec = vec(:,1:num_e_vecs_to_use);
-modified_faces = zeros(size(facedatabase, 1), size(facedatabase, 2), num_e_vecs_to_use);
-for i=1:size(facedatabase, 1)
-	%modified_faces(i,:,:) = reshape(facedatabase(i,:,:), height, width)*vec;
-	modified_faces(i,:,:) = reshape(facedatabase(i,:,:), height, width);
+features_train = zeros(trainInstances, imgRows, num_e_vecs_to_use);
+for i=1:trainInstances
+	features_train(i,:,:) = reshape(faces_train(i,:,:), imgRows, imgCols)*vec;
 end
 
-nVars = height * num_e_vecs_to_use;
-new_modified_faces = zeros(size(modified_faces, 1), nVars);
-for i=1:size(modified_faces, 1)
-	new_modified_faces(i,:) = reshape(modified_faces(i,:,:), nVars, 1);
+% Resize 
+features_train_reshaped = zeros(trainInstances, nVars);
+for i=1:trainInstances
+	features_train_reshaped(i,:) = reshape(features_train(i,:,:), nVars, 1);
 end
-modified_faces = new_modified_faces;
-% 4: Multi-class Linear SVM
+features_train = features_train_reshaped;
+
+
+%
+% Multi-class Linear SVM
+%
 
 fprintf('Compute SVM... %d\n',cputime-t)
 
-%X = double(data_train(:,1:nVars));
-
-% return the class # of the targets
 lambda = 1e-2;
 
-% Linear
-funObj = @(w)SSVMMultiLoss(w,modified_faces,targets,nClasses);
+funObj = @(w)SSVMMultiLoss(w,features_train,labels_train,nClasses);
 wLinear = minFunc(@penalizedL2,zeros(nVars*nClasses,1),options,funObj,lambda);
-
-fprintf('Reshape... %d\n',cputime-t)
 wLinear = reshape(wLinear,[nVars nClasses]);
 
-% compute error
+%
+% Compute Error
+%
+
 fprintf('Compute Error...%d\n',cputime-t)
-[junk yhat] = max(modified_faces*wLinear,[],2);
-trainErr_linear = sum(targets~=yhat)/length(targets);
 
-% Compute test error
-[y,junk] = find(targets_train(max_val_of_train_set_on_which_to_train+1:2925,:,:)');
-facedatabase_test = double(data_train(max_val_of_train_set_on_which_to_train+1:2925,:,:));
-modified_faces_test = zeros(size(facedatabase_test, 1), size(facedatabase_test, 2), num_e_vecs_to_use);
+% Training
+[junk yhat] = max(features_train*wLinear,[],2);
+trainErr_linear = sum(labels_train~=yhat)/length(labels_train);
 
-for i=1:size(facedatabase_test, 1)
-	modified_faces_test(i,:,:) = reshape(facedatabase_test(i,:,:), height, width)*vec;
+% Test
+
+[y,junk] = find(labels_test');
+
+% TODO: combine both loops
+
+features_test = zeros(testInstances, size(faces_test, 2), num_e_vecs_to_use);
+for i=1:testInstances
+	features_test(i,:,:) = reshape(faces_test(i,:,:), imgRows, imgCols)*vec;
 end
-new_modified_faces = zeros(size(modified_faces_test, 1), nVars);
-for i=1:size(modified_faces_test, 1)
-	new_modified_faces(i,:) = reshape(modified_faces_test(i,:,:), nVars, 1);
+
+features_train_reshaped = zeros(testInstances, nVars);
+for i=1:testInstances
+	features_train_reshaped(i,:) = reshape(features_test(i,:,:), nVars, 1);
 end
-modified_faces_test = new_modified_faces;
-[junk yhat_test] = max(modified_faces_test*wLinear,[],2);
+features_test = features_train_reshaped;
+
+[junk yhat_test] = max(features_test*wLinear,[],2);
 testErr = sum(y~=yhat_test)/length(y);
 
 
