@@ -3,8 +3,8 @@ clear
 
 % flags
 
-num_e_vecs_to_use = 48;
-train_set_size = 1000;
+num_e_vecs_to_use = 5;
+train_set_size = 2000;
 flag_load_normalized_data = 1;
 flag_normalize_images = 0;
 options.Display = 'none';
@@ -69,14 +69,14 @@ labels_train = sorted_labels;
 %
 
 if flag_normalize_images && ~flag_load_normalized_data
-    fprintf('Normalizing Images...%d\n',cputime-t)
+    fprintf('Normalizing Images...\n')
     
     % get hist of first image
     ref_hist = imhist(reshape(data_train(1,:,:),imgRows,imgCols));
 
     % rewrite images histogram equalized to reference histogram
     for i=1:size(data_train,1)
-        data_train(i,:,:) = histeq(reshape(data_train(i,:,:),imgRows,imgCols),ref_hist); 
+        data_train(i,:,:) = medfilt2(histeq(reshape(data_train(i,:,:),imgRows,imgCols),ref_hist)); 
     end
 end
 
@@ -106,7 +106,7 @@ end
 % Multi-class Linear SVM
 %
 
-fprintf('Compute SVM... %d\n',cputime-t)
+fprintf('Compute SVM...\n')
 
 lambda = 1e-2;
 
@@ -118,11 +118,11 @@ wLinear = reshape(wLinear,[nVars nClasses]);
 % Compute Error
 %
 
-fprintf('Compute Error...%d\n',cputime-t)
+fprintf('Compute Error...\n')
 
 % Training
 [junk yhat] = max(features_train*wLinear,[],2);
-trainErr_linear = sum(labels_train~=yhat)/length(labels_train);
+trainErr = sum(labels_train~=yhat)/length(labels_train);
 
 % Test
 
@@ -135,6 +135,26 @@ end
 [junk yhat_test] = max(features_test*wLinear,[],2);
 testErr = sum(y~=yhat_test)/length(y);
 
+fprintf('Run Time:       %3.0f\n',cputime-t)
+fprintf('Train Error: %6.2f\n', trainErr)
+fprintf('Test Error:  %6.2f\n', testErr)
+
+%
+% Confusion Matrix
+%
+
+% Train
+
+confusion_matrix_train = zeros(nClasses,nClasses);
+for i=1:trainInstances
+    confusion_matrix_train(labels_train(i),yhat(i)) = confusion_matrix_train(labels_train(i),yhat(i)) + 1;
+end
+
+% Test
+confusion_matrix_test = zeros(nClasses,nClasses);
+for i=1:testInstances
+    confusion_matrix_test(y(i),yhat_test(i)) = confusion_matrix_test(y(i),yhat_test(i)) + 1;
+end
 
 % Useful Functions
 %{
