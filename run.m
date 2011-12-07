@@ -3,12 +3,12 @@ clear
 
 % flags
 
-num_e_vecs_to_use = 10; % only used with LDA
-train_set_size = 2000;
+num_e_vecs_to_use = 20; % only used with LDA
+train_set_size = 2500;
 flag_load_normalized_data = 1;
 flag_normalize_images = 0;
-flag_use_lda = 0;
-flag_use_svm = 1;
+flag_use_lda = 1;
+flag_use_svm = 0;
 options.Display = 'none';
 
 
@@ -21,6 +21,7 @@ else
 end
 if flag_use_lda
     fprintf('Feature Extract: 2D LDA\n');
+    fprintf('Feature Vectors: %d\n',num_e_vecs_to_use);
 else
     fprintf('Feature Extract: Pixel\n');
 end
