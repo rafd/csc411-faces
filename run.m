@@ -3,8 +3,8 @@ clear
 
 % flags
 
-num_e_vecs_to_use = 5;
-train_set_size = 2000;
+num_e_vecs_to_use = 10;
+train_set_size = 2500;
 flag_load_normalized_data = 1;
 flag_normalize_images = 0;
 options.Display = 'none';
@@ -105,7 +105,7 @@ end
 %
 % Multi-class Linear SVM
 %
-
+%{
 fprintf('Compute SVM...\n')
 
 lambda = 1e-2;
@@ -113,6 +113,21 @@ lambda = 1e-2;
 funObj = @(w)SSVMMultiLoss(w,features_train,labels_train,nClasses);
 wLinear = minFunc(@penalizedL2,zeros(nVars*nClasses,1),options,funObj,lambda);
 wLinear = reshape(wLinear,[nVars nClasses]);
+%}
+
+%
+% Multinomial Logistic Regression
+%
+
+X = [ones(trainInstances,1) features_train];
+funObj = @(W)SoftmaxLoss2(W,X,labels_train,nClasses);
+
+lambda = 1e-4*ones(nVars+1,nClasses-1);
+lambda(1,:) = 0; % Don't penalize biases
+fprintf('Training multinomial logistic regression model...\n');
+wSoftmax = minFunc(@penalizedL2,zeros((nVars+1)*(nClasses-1),1),options,funObj,lambda(:));
+wSoftmax = reshape(wSoftmax,[nVars+1 nClasses-1]);
+wSoftmax = [wSoftmax zeros(nVars+1,1)];
 
 %
 % Compute Error
@@ -121,8 +136,10 @@ wLinear = reshape(wLinear,[nVars nClasses]);
 fprintf('Compute Error...\n')
 
 % Training
-[junk yhat] = max(features_train*wLinear,[],2);
-trainErr = sum(labels_train~=yhat)/length(labels_train);
+[junk yhat] = max(X*wSoftmax,[],2);
+trainErr = sum(yhat~=labels_train)/length(labels_train);
+
+% Test
 
 % Test
 
@@ -132,8 +149,8 @@ for i=1:testInstances
 	features_test(i,:,:) = reshape((reshape(faces_test(i,:,:), imgRows, imgCols)*vec), nVars, 1);
 end
 
-[junk yhat_test] = max(features_test*wLinear,[],2);
-testErr = sum(y~=yhat_test)/length(y);
+[junk yhat_test] = max([ones(testInstances,1) features_test]*wSoftmax,[],2);
+testErr = sum(yhat_test~=y)/length(y);
 
 fprintf('Run Time:       %3.0f\n',cputime-t)
 fprintf('Train Error: %6.2f\n', trainErr)
